@@ -3,7 +3,7 @@ kind: Trigger
 metadata:
   name: ansible-ee-t
 spec:
-  #serviceAccountName: pipeline
+  serviceAccountName: pipeline
   interceptors:
     - github:
         secretRef:

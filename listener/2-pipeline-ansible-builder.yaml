@@ -49,10 +49,9 @@ spec:
     type: string
     default: "false"
   tasks:
-
     - name: fetch-repository
       taskRef:
-        name: git-clone-1-6-0
+        name: git-clone
         kind: ClusterTask
       workspaces:
       - name: output
@@ -92,29 +91,6 @@ spec:
         value: "false"
       - name: IMAGE
         value: $(params.NAME):$(params.TAG)
-      - name: CONTEXT
-        value: "$(params.CONTEXT)"
-      - name: DOCKERFILE
-        value: "$(params.DOCKERFILE)"
-      - name: BUILD_EXTRA_ARGS
-        value: "$(params.BUILD_ARGS)"
-      - name: PUSH_EXTRA_ARGS
-        value: "$(params.PUSH_ARGS)"
-
-    - name: build-image-latest
-      taskRef:
-        name: buildah
-        kind: ClusterTask
-      workspaces:
-      - name: source
-        workspace: ee-repo
-      runAfter:
-      - ansible-builder-create
-      params:
-      - name: TLSVERIFY
-        value: "false"
-      - name: IMAGE
-        value: $(params.NAME):latest
       - name: CONTEXT
         value: "$(params.CONTEXT)"
       - name: DOCKERFILE

@@ -25,7 +25,7 @@ spec:
           value: >-
             registry.redhat.io/ansible-automation-platform-21/ansible-builder-rhel8:1.0.1-47
         - name: NAME
-          value: quay.io/jtudelag/ansible-ee-test
+          value: quay.io/jveverka/ansible-ee-test
         - name: TAG
           value: $(tt.params.short-id)
         - name: TLSVERIFY

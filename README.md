@@ -1,45 +1,77 @@
-# ansible-ee-gitops
+# Deploy Ansible EE pipeline
 
-First create secrets manually for your private registries (pull and push images) and for the Tekton Trigger webhook.
+This is an example of setting up OpenShift Pipeline for building Ansible Execution Environment.
 
-## Private Registry Secret
+Based on great work from this [blog post](https://cloud.redhat.com/blog/how-to-build-ansible-execution-environments-with-openshift-pipelines).
 
-For example, for your private registries. In this case we am pushing to `quay.io` and also pulling from `registry.redhat.io`.
-```yaml
-apiVersion: v1
-data:
-  .dockerconfigjson: XXXXXX
-kind: Secret
-metadata:
-  annotations:
-    tekton.dev/docker-0: quay.io
-    tekton.dev/docker-1: registry.redhat.io
-  name: pull-and-push
-type: kubernetes.io/dockerconfigjson
-```
+## Setup
 
-Then you need to link the secret `pull-and-push` to the `pipeline` SA so it can be used for pulling and pushing images.
-```bash
-oc secret link pipeline pull-and-push --for=pull,mount
-```
+- Get Git repo with [Execution Environment definition](https://github.com/jwerak/ansible-execution-environments)
+  - Ideally fork the repo, so that you may push changes to it.
+- login to OCP cluster with OpenShift pipelines installed
+- create new namespace
+  - `oc new-project ansible-ees`
+- Create dockerconfig file 
+  - either login to container registries you will need based on Execution Environment. In this [EE](https://github.com/jwerak/ansible-execution-environments) we will need registry.redhat.io (to pull base image) and quay.io (to push image to)
+    - `podman login registry.redhat.io`
+    - `podman login quay.io`
+- create [dockerconfig secret](https://docs.openshift.com/container-platform/4.11/openshift_images/managing_images/using-image-pull-secrets.html#images-allow-pods-to-reference-images-from-secure-registries_using-image-pull-secrets) if secrets from podman login are to be used, upload */run/user/1000/containers/auth.json*:
 
-## Install Tekton Hub ansible-builder task
+        oc create secret generic pull-and-push \
+        --from-file=.dockerconfigjson=/run/user/1000/containers/auth.json \
+        --type=kubernetes.io/dockerconfigjson
 
-Go to [Tekton Hub](https://hub.tekton.dev/tekton/task/ansible-builder) and install the `ansible-builder` task.
+  - Link secret to pipeline service account
+    - `oc secret link pipeline pull-and-push --for=pull,mount`
 
-```bash
-kubectl -n <MY_NAMESPACE> apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/ansible-builder/0.1/ansible-builder.yaml
-```
+- Create GitHub webhook secret
 
-## Webhook Secret Token
+        oc create secret generic ansible-ee-trigger-secret \
+        --from-literal secretToken=123
 
-And for the webhook secret token:
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ansible-ee-trigger-secret
-type: Generic
-stringData:
-  secretToken: "123"
-```
+- Create secret with contents of ansible.cfg
+  - 
+
+Setup Tekton to OCP:
+
+- Create Ansible-Builder task
+  - `oc apply -f https://raw.githubusercontent.com/jwerak/catalog/main/task/ansible-builder/0.2/ansible-builder.yaml`
+- Apply Pipeline Manifests
+  - Edit the Trigger Template *listener/4-trigger-template.yaml* and change the PipelineRun *NAME* parameter to set the image repository name.
+  - `oc -n ansible-ees apply -f ../ansible-ee-gitops/listener`
+
+Configure GitHub:
+
+- Get Webhook route url
+  - `oc -n ansible-ees get route ansible-ee-el -o jsonpath="{.spec.host}"`
+- configure Webhook on GitHub, go to 
+  - go to Repo -> Settings -> Webhooks -> Add Webhooks -> Add new882
+
+## Run pipeline
+
+- Go to repo with Execution Environment and push new commit
+  - `cd ../ansible-execution-environments/`
+  - `git commit --allow-empty -m "Empty commit, trigger the pipeline"`
+  - `git push origin main`
+
+## To Solve
+
+- [x] Pass *ansible.cfg* for *automation-hub* to buildah run?
+  - [x] Create ansible.cfg as secret
+  - [x] Modify ansible-builder task to optionally load ansible.cfg from secret
+- [ ] Create complex EE
+  - [ ] supported - 
+- [ ] Have Git structure to build multiple image kinds
+  - [ ] branch based model
+  - [ ] configurable from file in repository
+  - [ ] images
+    - [ ] minimal
+    - [ ] supported
+    - [ ] full
+
+## Customizations
+
+### Custom ansible.cfg
+
+- Create secret
+  - `oc create secret generic custom-ansible-config --from-file=ansible.cfg=./ansible.cfg.local`
